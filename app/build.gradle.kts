@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         applicationId = "com.joyal.swyplauncher"
-        minSdk = 34
+        minSdk = 24
         targetSdk = 36
         versionCode = ZonedDateTime.now(ZoneId.of("Asia/Kolkata"))
             .format(DateTimeFormatter.ofPattern("yyyyMMddHH"))
@@ -47,12 +47,11 @@ android {
 
     signingConfigs {
         create("release") {
-            if (keystorePropertiesFile.exists()) {
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
-            }
+            storeFile = file("keystore.jks")
+            storeType = "pkcs12"
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+            keyPassword = System.getenv("KEYSTORE_PASSWORD")
         }
     }
 
@@ -64,9 +63,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.getByName("release")
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
             }

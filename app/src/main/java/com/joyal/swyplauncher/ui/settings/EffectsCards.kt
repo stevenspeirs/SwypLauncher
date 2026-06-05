@@ -188,15 +188,23 @@ fun VisualEffectsCard(
                     BentoSlider(
                         value = sliderBlurLevel,
                         onValueChange = { newValue ->
-                            if (kotlin.math.abs(newValue - lastHapticValue) >= 5f) {
+                    
+                            val stepSize = 5f
+                            val step = (newValue / stepSize).roundToInt()
+                            val steppedValue = step * stepSize
+                    
+                            if (steppedValue != lastHapticValue) {
                                 view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
-                                lastHapticValue = newValue
+                                lastHapticValue = steppedValue
                             }
-                            sliderBlurLevel = newValue
+                    
+                            sliderBlurLevel = steppedValue
                         },
-                        onValueChangeFinished = { onBlurLevelChange(sliderBlurLevel.roundToInt()) },
+                        onValueChangeFinished = {
+                            onBlurLevelChange(sliderBlurLevel.roundToInt())
+                        },
                         valueRange = 10f..150f,
-                        steps = 29
+                        steps = 27
                     )
                 }
             }

@@ -187,13 +187,21 @@ fun AppearanceCard(
                 BentoSlider(
                     value = sliderGridSize,
                     onValueChange = { newValue ->
-                        if (kotlin.math.abs(newValue - lastGridHaptic) >= 0.5f) {
+                
+                        val stepSize = 1f
+                        val step = (newValue / stepSize).roundToInt()
+                        val steppedValue = step * stepSize
+                
+                        if (steppedValue != lastGridHaptic) {
                             view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
-                            lastGridHaptic = newValue
+                            lastGridHaptic = steppedValue
                         }
-                        sliderGridSize = newValue
+                
+                        sliderGridSize = steppedValue
                     },
-                    onValueChangeFinished = { onGridSizeChange(sliderGridSize.roundToInt()) },
+                    onValueChangeFinished = {
+                        onGridSizeChange(sliderGridSize.roundToInt())
+                    },
                     valueRange = 3f..6f,
                     steps = 2
                 )
@@ -222,17 +230,23 @@ fun AppearanceCard(
                 BentoSlider(
                     value = sliderCornerRadius,
                     onValueChange = { newValue ->
-                        // No manual snap: steps = 19 already snaps to exact 5% ticks (incl. 85%).
-                        // A snap-to-0.85 here used to swallow the 90% tick due to float rounding,
-                        // so abs(0.9f - 0.85f) (~0.04999995) fell under the 0.05f threshold.
-                        // Haptic threshold stays below one step (0.04f) to fire reliably per tick.
-                        if (kotlin.math.abs(newValue - lastRadiusHaptic) >= 0.04f) {
+                
+                        val stepSize = 0.05f
+                        val step = (newValue / stepSize).roundToInt()
+                        val precision = (1 / stepSize).roundToInt()
+                        val rawValue = step * stepSize
+                        val steppedValue = (rawValue * precision).roundToInt() / precision.toFloat()
+                
+                        if (steppedValue != lastRadiusHaptic) {
                             view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
-                            lastRadiusHaptic = newValue
+                            lastRadiusHaptic = steppedValue
                         }
-                        sliderCornerRadius = newValue
+                
+                        sliderCornerRadius = steppedValue
                     },
-                    onValueChangeFinished = { onCornerRadiusChange(sliderCornerRadius) },
+                    onValueChangeFinished = {
+                        onCornerRadiusChange(sliderCornerRadius)
+                    },
                     valueRange = 0f..1f,
                     steps = 19
                 )

@@ -1,0 +1,88 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Build type"
+        required: true
+        default: "release"
+        type: choice
+        options:
+          - release
+          - debug
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: 24
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Decode keystore
+        run: |
+          mkdir -p app
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/keystore.jks
+
+      - name: Verify keystore
+        run: |
+          ls -lh app/keystore.jks
+          file app/keystore.jks
+          keytool -list -keystore app/keystore.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}"
+
+      - name: Debug signing env (safe check)
+        run: |
+          echo "Checking signing environment variables..."
+
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "❌ KEYSTORE_PASSWORD is EMPTY"
+          else
+            echo "✅ KEYSTORE_PASSWORD is set"
+          fi
+
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "❌ KEY_ALIAS is EMPTY"
+          else
+            echo "✅ KEY_ALIAS is set"
+          fi
+
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+
+      - name: Print alias (safe)
+        run: echo "Alias = $KEY_ALIAS"
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+
+      - name: Build APK
+        id: build
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TYPE=${{ inputs.build_type }}
+          else
+            TYPE=release
+          fi
+
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+
+          ./gradlew assemble${TYPE^}
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.build.outputs.type }}-apk
+          path: app/build/outputs/apk/${{ steps.build.outputs.type }}/*.apk

@@ -13,9 +13,9 @@ object BentoTypography {
      * Large display text (48sp, Bold) - For large numbers, sort categories
      */
     val displayLarge = TextStyle(
-        fontSize = 48.sp,
+        fontSize = 32.sp,
         fontWeight = FontWeight.Bold,
-        lineHeight = 48.sp
+        lineHeight = 32.sp
     )
     
     /**

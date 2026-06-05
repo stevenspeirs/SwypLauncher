@@ -102,7 +102,7 @@ fun LanguageCardContent(currentLanguage: AppLanguage) {
             color = BentoColors.AccentGreen,
             maxLines = 1,
             softWrap = false,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Visible
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
         
         // Show English name as secondary text (except for System Default)

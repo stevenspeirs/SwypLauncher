@@ -143,3 +143,10 @@ For issues, questions, or feature requests, please open an issue on GitHub.
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history
 - **[PRIVACY_POLICY.md](PRIVACY_POLICY.md)** - Privacy policy
 - **[LICENSE](LICENSE.md)** - Apache License, Version 2.0
+
+## Modifications
+
+1. Changed step size for 'Blur intensity' slider
+2. Changed text overflow for large text
+3. Reduced font size and line height for large text
+4. Refactored slider code

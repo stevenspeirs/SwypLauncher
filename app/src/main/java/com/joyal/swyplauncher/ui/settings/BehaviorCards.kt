@@ -351,7 +351,7 @@ fun SortAppsByCardContent(sortOrder: AppSortOrder) {
             color = BentoColors.AccentGreen,
             maxLines = 1,
             softWrap = false,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Visible
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
         
         Text(

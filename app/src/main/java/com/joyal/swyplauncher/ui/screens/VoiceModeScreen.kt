@@ -70,6 +70,9 @@ fun VoiceModeScreen(
     val gridSize by launcherViewModel.gridSize.collectAsState()
     val cornerRadius by launcherViewModel.cornerRadius.collectAsState()
     val sortOrder by launcherViewModel.appSortOrder.collectAsState()
+    val autoOpenSingleResult by launcherViewModel.autoOpenSingleResult.collectAsState()
+    val loadAllAppsOnOpen by launcherViewModel.loadAllAppsOnOpen.collectAsState()
+    val allAppsRevealed by launcherViewModel.allAppsRevealed.collectAsState()
     val context = LocalContext.current
     val activity = context as? Activity
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -194,12 +197,17 @@ fun VoiceModeScreen(
         }
     }
 
-    // Auto-launch when there's exactly one filtered app AND its name is an exact match
+    // Auto-launch when the spoken text narrows to a single result (app or shortcut).
+    // An exact name match always launches; a partial match launches too when the
+    // auto-open-single-result preference is on (after a short grace period so ongoing
+    // speech can supersede it — any transcription update restarts this effect).
     // Triggers on filtered list changes, transcription updates, or final recognition result
     LaunchedEffect(
         launcherState.voiceFilteredApps,
+        launcherState.voiceShortcutResults,
         voiceState.transcription,
-        voiceState.recognitionResult
+        voiceState.recognitionResult,
+        autoOpenSingleResult
     ) {
         if (autoLaunched) return@LaunchedEffect
 
@@ -211,19 +219,30 @@ fun VoiceModeScreen(
         val termFromTranscription = cleanupSpokenText(voiceState.transcription)
             .takeIf { it.isNotBlank() }
 
-        val searchTerm = termFromResult ?: termFromTranscription
+        val searchTerm = termFromResult ?: termFromTranscription ?: return@LaunchedEffect
         val filtered = launcherState.voiceFilteredApps
+        val shortcuts = launcherState.voiceShortcutResults
 
-        if (!searchTerm.isNullOrBlank() && filtered.size == 1) {
-            val app = filtered.first()
-            val isExactMatch = normalizeForMatch(app.label) == normalizeForMatch(searchTerm)
-            if (isExactMatch) {
-                autoLaunched = true
-                voiceViewModel.stopListening()
-                launcherViewModel.launchApp(app.packageName, app.activityName)
-                onDismiss()
-            }
+        // Only auto-launch when the total (apps + shortcuts) is exactly one result
+        if (filtered.size + shortcuts.size != 1) return@LaunchedEffect
+
+        val resultLabel = filtered.firstOrNull()?.label ?: shortcuts.first().label
+        val isExactMatch = normalizeForMatch(resultLabel) == normalizeForMatch(searchTerm)
+        // Exact name match always launches; a partial match only when the setting is on
+        // (with a short grace period so continued speech can supersede it)
+        if (!isExactMatch) {
+            if (!autoOpenSingleResult) return@LaunchedEffect
+            kotlinx.coroutines.delay(500)
         }
+        autoLaunched = true
+        voiceViewModel.stopListening()
+        if (filtered.size == 1) {
+            val app = filtered.first()
+            launcherViewModel.launchApp(app.packageName, app.activityName)
+        } else {
+            launcherViewModel.launchShortcut(shortcuts.first())
+        }
+        onDismiss()
     }
 
     // Stop listening when screen is dismissed or becomes inactive
@@ -381,6 +400,7 @@ fun VoiceModeScreen(
                     calculatorResult = launcherState.voiceCalculatorResult,
                     currencyResult = launcherState.voiceCurrencyResult,
                     unitResult = launcherState.voiceUnitResult,
+                    timeZoneResult = launcherState.voiceTimeZoneResult,
                     smartApps = launcherState.voiceSmartApps,
                     appsToShow = appsToShow,
                     hiddenApps = launcherState.hiddenApps,
@@ -395,7 +415,11 @@ fun VoiceModeScreen(
                     launcherMode = LauncherViewModel.LauncherMode.VOICE,
                     currencyMode = LauncherViewModel.CurrencyMode.VOICE,
                     onAddShortcut = onAddShortcut,
-                    onDismiss = onDismiss
+                    onDismiss = onDismiss,
+                    shortcutResults = launcherState.voiceShortcutResults,
+                    loadAllAppsOnOpen = loadAllAppsOnOpen,
+                    allAppsRevealed = allAppsRevealed,
+                    onRevealAllApps = { launcherViewModel.revealAllApps() }
                 )
             }
         }

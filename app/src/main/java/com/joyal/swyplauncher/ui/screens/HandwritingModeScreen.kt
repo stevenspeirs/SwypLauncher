@@ -93,6 +93,8 @@ fun HandwritingModeScreen(
     val gridSize by launcherViewModel.gridSize.collectAsState()
     val cornerRadius by launcherViewModel.cornerRadius.collectAsState()
     val autoOpenSingleResult by launcherViewModel.autoOpenSingleResult.collectAsState()
+    val loadAllAppsOnOpen by launcherViewModel.loadAllAppsOnOpen.collectAsState()
+    val allAppsRevealed by launcherViewModel.allAppsRevealed.collectAsState()
     val sortOrder by launcherViewModel.appSortOrder.collectAsState()
     val context = LocalContext.current
 
@@ -122,6 +124,15 @@ fun HandwritingModeScreen(
     val density = LocalDensity.current
     val baseStrokeWidth = with(density) { 8.dp.toPx() } // base stroke width
 
+    // Cache smoothed paths for completed strokes — the shimmer animation redraws the
+    // canvas every frame, so rebuilding Bézier paths per frame would waste main-thread
+    // time while the user is drawing
+    val completedStrokePaths = remember(handwritingState.strokes) {
+        handwritingState.strokes
+            .filter { it.points.size > 1 }
+            .map { stroke -> createSmoothPath(stroke.points.map { Offset(it.x, it.y) }) }
+    }
+
     // Show toast only once when initialization completes for the first time
     LaunchedEffect(handwritingState.isInitialized, handwritingState.hasShownInitToast) {
         if (handwritingState.isInitialized && !handwritingState.hasShownInitToast) {
@@ -141,7 +152,7 @@ fun HandwritingModeScreen(
     LaunchedEffect(matchedGesture, handwritingState.recognizedText) {
         val gesture = matchedGesture
         when {
-            gesture != null -> launcherViewModel.filterAppsByCustomGestureHandwriting(gesture.appIds)
+            gesture != null -> launcherViewModel.filterAppsByCustomGestureHandwriting(gesture.appIds, gesture.shortcutIds)
             handwritingState.recognizedText.isNotEmpty() ->
                 launcherViewModel.filterAppsByPrefixHandwriting(handwritingState.recognizedText)
 
@@ -157,7 +168,7 @@ fun HandwritingModeScreen(
             val gesture = matchedGesture
             when {
                 gesture != null ->
-                    launcherViewModel.filterAppsByCustomGestureHandwriting(gesture.appIds)
+                    launcherViewModel.filterAppsByCustomGestureHandwriting(gesture.appIds, gesture.shortcutIds)
 
                 handwritingState.recognizedText.isNotEmpty() ->
                     launcherViewModel.filterAppsByPrefixHandwriting(handwritingState.recognizedText)
@@ -183,21 +194,30 @@ fun HandwritingModeScreen(
     // Auto-open single result if enabled (treats gesture match as an active query)
     LaunchedEffect(
         launcherState.handwritingFilteredApps,
+        launcherState.handwritingShortcutResults,
         autoOpenSingleResult,
         handwritingState.recognizedText,
         matchedGesture
     ) {
         val hasActiveQuery =
             handwritingState.recognizedText.isNotEmpty() || matchedGesture != null
-        if (autoOpenSingleResult &&
-            hasActiveQuery &&
-            launcherState.handwritingFilteredApps.size == 1
-        ) {
-            kotlinx.coroutines.delay(300) // Small delay to avoid accidental opens
-            val app = launcherState.handwritingFilteredApps[0]
+        
+        if (!autoOpenSingleResult || !hasActiveQuery) return@LaunchedEffect
+        
+        val apps = launcherState.handwritingFilteredApps
+        val shortcuts = launcherState.handwritingShortcutResults
+        
+        // Only auto-open when the total (apps + shortcuts) is exactly one result
+        if (apps.size + shortcuts.size != 1) return@LaunchedEffect
+        
+        kotlinx.coroutines.delay(300) // Small delay to avoid accidental opens
+        if (apps.size == 1) {
+            val app = apps[0]
             launcherViewModel.launchApp(app.packageName, app.activityName)
-            onDismiss()
+        } else {
+            launcherViewModel.launchShortcut(shortcuts[0])
         }
+        onDismiss()
     }
 
     // Update particles at 30 FPS instead of screen refresh rate to reduce CPU usage
@@ -286,13 +306,8 @@ fun HandwritingModeScreen(
         }
 
         // Draw completed strokes
-        handwritingState.strokes.forEach { stroke ->
-            if (stroke.points.size > 1) {
-                drawStroke(
-                    createSmoothPath(stroke.points.map { Offset(it.x, it.y) }),
-                    0.18f
-                )
-            }
+        completedStrokePaths.forEach { path ->
+            drawStroke(path, 0.18f)
         }
 
         // Draw current path being drawn
@@ -331,6 +346,9 @@ fun HandwritingModeScreen(
                     if (handwritingState.isInitialized) {
                         detectDragGestures(
                             onDragStart = { offset ->
+                                // Cancel pending recognition so its result doesn't
+                                // recompose the grid while this stroke is drawn
+                                handwritingViewModel.onStrokeDrawingStarted()
                                 currentPath.clear()
                                 currentPath.add(offset)
                                 // Burst of particles on start
@@ -543,6 +561,7 @@ fun HandwritingModeScreen(
                 calculatorResult = launcherState.handwritingCalculatorResult,
                 currencyResult = launcherState.handwritingCurrencyResult,
                 unitResult = launcherState.handwritingUnitResult,
+                timeZoneResult = launcherState.handwritingTimeZoneResult,
                 smartApps = launcherState.handwritingSmartApps,
                 appsToShow = launcherState.handwritingFilteredApps,
                 hiddenApps = launcherState.hiddenApps,
@@ -557,7 +576,13 @@ fun HandwritingModeScreen(
                 launcherMode = LauncherViewModel.LauncherMode.HANDWRITING,
                 currencyMode = LauncherViewModel.CurrencyMode.HANDWRITING,
                 onAddShortcut = onAddShortcut,
-                onDismiss = onDismiss
+                onDismiss = onDismiss,
+                shortcutResults = launcherState.handwritingShortcutResults,
+                // A matched gesture carries assigned shortcuts but no text query, so surface them.
+                forceShowShortcuts = matchedGesture != null,
+                loadAllAppsOnOpen = loadAllAppsOnOpen,
+                allAppsRevealed = allAppsRevealed,
+                onRevealAllApps = { launcherViewModel.revealAllApps() }
             )
         }
     }

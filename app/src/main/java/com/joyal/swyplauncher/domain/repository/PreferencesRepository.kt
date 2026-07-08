@@ -9,7 +9,6 @@ interface PreferencesRepository {
     fun hasDownloadedHandwritingModel(): Boolean
     fun setHandwritingModelDownloaded()
     
-    suspend fun isDefaultAssistantSet(): Boolean
     suspend fun setDefaultAssistantConfigured(isConfigured: Boolean)
     
     fun getSelectedMode(): LauncherMode
@@ -27,7 +26,27 @@ interface PreferencesRepository {
     
     fun isAutoOpenSingleResultEnabled(): Boolean
     fun setAutoOpenSingleResult(enabled: Boolean)
-    
+
+    // When true (default), the full app list is shown as soon as the assistant opens.
+    // When false, only suggested apps are shown until the user reveals the rest.
+    fun isLoadAllAppsOnOpenEnabled(): Boolean
+    fun setLoadAllAppsOnOpen(enabled: Boolean)
+
+    // App shortcut search in assistant results (default off). Requires the assistant role;
+    // automatically switched off when the role is revoked.
+    fun isShortcutSearchEnabled(): Boolean
+    fun setShortcutSearchEnabled(enabled: Boolean)
+
+    // Individually hidden app-shortcut search results, keyed by "packageName/shortcutId".
+    fun getHiddenShortcuts(): Set<String>
+    fun addHiddenShortcut(identifier: String)
+    fun removeHiddenShortcut(identifier: String)
+
+    // Search aliases (magic word -> set of "packageName/shortcutId") for app shortcuts,
+    // set only from the assistant long-press menu.
+    fun getShortcutSearchAliases(): Map<String, Set<String>>
+    fun setShortcutSearchAliases(aliases: Map<String, Set<String>>)
+
     fun getEnabledModes(): List<LauncherMode>
     fun setEnabledModes(modes: List<LauncherMode>)
     

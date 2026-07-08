@@ -219,6 +219,7 @@ lint-baseline.xml
 .codex/
 .adb/
 .wifi-adb/
+Claude.md
 
 # ========================================
 # Package Files
@@ -423,6 +424,8 @@ dependencyGraph/
 incremental/
 transforms/
 model/
+# "model/" above targets IDE caches — keep source packages like domain/model tracked
+!app/src/**/model/
 
 # ========================================
 # ML Kit & TensorFlow

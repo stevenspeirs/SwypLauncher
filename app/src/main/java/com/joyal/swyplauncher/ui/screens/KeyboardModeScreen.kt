@@ -57,6 +57,8 @@ fun KeyboardModeScreen(
     val gridSize by launcherViewModel.gridSize.collectAsState()
     val cornerRadius by launcherViewModel.cornerRadius.collectAsState()
     val autoOpenSingleResult by launcherViewModel.autoOpenSingleResult.collectAsState()
+    val loadAllAppsOnOpen by launcherViewModel.loadAllAppsOnOpen.collectAsState()
+    val allAppsRevealed by launcherViewModel.allAppsRevealed.collectAsState()
     val sortOrder by launcherViewModel.appSortOrder.collectAsState()
     val searchQuery = keyboardState.searchQuery
     val focusRequester = remember { FocusRequester() }
@@ -112,17 +114,26 @@ fun KeyboardModeScreen(
         wasSearching = searchQuery.isNotEmpty()
     }
 
-    // Auto-open single result if enabled
-    LaunchedEffect(launcherState.keyboardFilteredApps, autoOpenSingleResult, searchQuery) {
-        if (autoOpenSingleResult &&
-            searchQuery.isNotEmpty() &&
-            launcherState.keyboardFilteredApps.size == 1
-        ) {
-            kotlinx.coroutines.delay(300) // Small delay to avoid accidental opens
-            val app = launcherState.keyboardFilteredApps[0]
+    // Auto-open if enabled and the search narrows to a single result — app or shortcut
+    LaunchedEffect(
+        launcherState.keyboardFilteredApps,
+        launcherState.keyboardShortcutResults,
+        autoOpenSingleResult,
+        searchQuery
+    ) {
+        if (!autoOpenSingleResult || searchQuery.isEmpty()) return@LaunchedEffect
+        val apps = launcherState.keyboardFilteredApps
+        val shortcuts = launcherState.keyboardShortcutResults
+        // Only auto-open when the total (apps + shortcuts) is exactly one result
+        if (apps.size + shortcuts.size != 1) return@LaunchedEffect
+        kotlinx.coroutines.delay(300) // Small delay to avoid accidental opens
+        if (apps.size == 1) {
+            val app = apps[0]
             launcherViewModel.launchApp(app.packageName, app.activityName)
-            onDismiss()
+        } else {
+            launcherViewModel.launchShortcut(shortcuts[0])
         }
+        onDismiss()
     }
 
     // Dismiss keyboard when user starts scrolling
@@ -213,6 +224,7 @@ fun KeyboardModeScreen(
                     calculatorResult = launcherState.keyboardCalculatorResult,
                     currencyResult = launcherState.keyboardCurrencyResult,
                     unitResult = launcherState.keyboardUnitResult,
+                    timeZoneResult = launcherState.keyboardTimeZoneResult,
                     smartApps = launcherState.keyboardSmartApps,
                     appsToShow = appsToShow,
                     hiddenApps = launcherState.hiddenApps,
@@ -227,7 +239,11 @@ fun KeyboardModeScreen(
                     launcherMode = LauncherViewModel.LauncherMode.KEYBOARD,
                     currencyMode = LauncherViewModel.CurrencyMode.KEYBOARD,
                     onAddShortcut = onAddShortcut,
-                    onDismiss = onDismiss
+                    onDismiss = onDismiss,
+                    shortcutResults = launcherState.keyboardShortcutResults,
+                    loadAllAppsOnOpen = loadAllAppsOnOpen,
+                    allAppsRevealed = allAppsRevealed,
+                    onRevealAllApps = { launcherViewModel.revealAllApps() }
                 )
             }
         }

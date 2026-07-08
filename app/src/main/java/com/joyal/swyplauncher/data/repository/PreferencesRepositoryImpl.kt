@@ -32,9 +32,6 @@ class PreferencesRepositoryImpl @Inject constructor(
         prefs.edit().putBoolean(KEY_HANDWRITING_MODEL_DOWNLOADED, true).apply()
     }
 
-    override suspend fun isDefaultAssistantSet(): Boolean = 
-        prefs.getBoolean(KEY_DEFAULT_ASSISTANT_SET, false)
-
     override suspend fun setDefaultAssistantConfigured(isConfigured: Boolean) {
         prefs.edit().putBoolean(KEY_DEFAULT_ASSISTANT_SET, isConfigured).apply()
     }
@@ -79,11 +76,68 @@ class PreferencesRepositoryImpl @Inject constructor(
         prefs.edit().putFloat(KEY_CORNER_RADIUS, radius).apply()
     }
 
-    override fun isAutoOpenSingleResultEnabled(): Boolean = 
+    override fun isAutoOpenSingleResultEnabled(): Boolean =
         prefs.getBoolean(KEY_AUTO_OPEN_SINGLE_RESULT, false)
 
     override fun setAutoOpenSingleResult(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_AUTO_OPEN_SINGLE_RESULT, enabled).apply()
+    }
+
+    override fun isLoadAllAppsOnOpenEnabled(): Boolean =
+        prefs.getBoolean(KEY_LOAD_ALL_APPS_ON_OPEN, true)
+
+    override fun setLoadAllAppsOnOpen(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_LOAD_ALL_APPS_ON_OPEN, enabled).apply()
+    }
+
+    override fun isShortcutSearchEnabled(): Boolean =
+        prefs.getBoolean(KEY_SHORTCUT_SEARCH_ENABLED, false)
+
+    override fun setShortcutSearchEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SHORTCUT_SEARCH_ENABLED, enabled).apply()
+    }
+
+    override fun getHiddenShortcuts(): Set<String> =
+        prefs.getStringSet(KEY_HIDDEN_SHORTCUTS, emptySet()) ?: emptySet()
+
+    override fun addHiddenShortcut(identifier: String) {
+        val current = getHiddenShortcuts().toMutableSet()
+        current.add(identifier)
+        prefs.edit().putStringSet(KEY_HIDDEN_SHORTCUTS, current).apply()
+    }
+
+    override fun removeHiddenShortcut(identifier: String) {
+        val current = getHiddenShortcuts().toMutableSet()
+        current.remove(identifier)
+        prefs.edit().putStringSet(KEY_HIDDEN_SHORTCUTS, current).apply()
+    }
+
+    // Shortcut ids can contain arbitrary characters, so use JSON rather than the delimiter
+    // scheme used for app aliases (which would be ambiguous here).
+    override fun getShortcutSearchAliases(): Map<String, Set<String>> {
+        val raw = prefs.getString(KEY_SHORTCUT_SEARCH_ALIASES, null) ?: return emptyMap()
+        return try {
+            val json = org.json.JSONObject(raw)
+            buildMap {
+                json.keys().forEach { word ->
+                    val arr = json.getJSONArray(word)
+                    val ids = buildSet {
+                        for (i in 0 until arr.length()) add(arr.getString(i))
+                    }
+                    if (ids.isNotEmpty()) put(word, ids)
+                }
+            }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    override fun setShortcutSearchAliases(aliases: Map<String, Set<String>>) {
+        val json = org.json.JSONObject()
+        aliases.forEach { (word, ids) ->
+            json.put(word, org.json.JSONArray(ids.toList()))
+        }
+        prefs.edit().putString(KEY_SHORTCUT_SEARCH_ALIASES, json.toString()).apply()
     }
 
     override fun getEnabledModes(): List<LauncherMode> {
@@ -192,11 +246,23 @@ class PreferencesRepositoryImpl @Inject constructor(
     }
 
     override fun getEnabledConversionCategories(): Set<String>? {
-        return if (prefs.contains(KEY_ENABLED_CONVERSION_CATEGORIES)) {
-            prefs.getStringSet(KEY_ENABLED_CONVERSION_CATEGORIES, emptySet()) ?: emptySet()
-        } else {
-            null // First launch — caller treats null as "all enabled"
+        if (!prefs.contains(KEY_ENABLED_CONVERSION_CATEGORIES)) {
+            return null // First launch — caller treats null as "all enabled"
         }
+        val stored = prefs.getStringSet(KEY_ENABLED_CONVERSION_CATEGORIES, emptySet()) ?: emptySet()
+        // One-time migration: time-zone conversion shipped after this preference could
+        // already be saved, so a pre-existing set can never contain it. Enable it once
+        // for upgraders (mirrors "new categories default on") without overriding any
+        // category they later choose to disable.
+        if (!prefs.contains(KEY_TIMEZONE_CATEGORY_MIGRATED)) {
+            val migrated = stored + "TIMEZONE"
+            prefs.edit()
+                .putStringSet(KEY_ENABLED_CONVERSION_CATEGORIES, migrated)
+                .putBoolean(KEY_TIMEZONE_CATEGORY_MIGRATED, true)
+                .apply()
+            return migrated
+        }
+        return stored
     }
 
     override fun setEnabledConversionCategories(categories: Set<String>) {
@@ -212,6 +278,10 @@ class PreferencesRepositoryImpl @Inject constructor(
         private const val KEY_GRID_SIZE = "grid_size"
         private const val KEY_CORNER_RADIUS = "corner_radius"
         private const val KEY_AUTO_OPEN_SINGLE_RESULT = "auto_open_single_result"
+        private const val KEY_LOAD_ALL_APPS_ON_OPEN = "load_all_apps_on_open"
+        private const val KEY_SHORTCUT_SEARCH_ENABLED = "shortcut_search_enabled"
+        private const val KEY_HIDDEN_SHORTCUTS = "hidden_shortcuts"
+        private const val KEY_SHORTCUT_SEARCH_ALIASES = "shortcut_search_aliases"
         private const val KEY_ENABLED_MODES = "enabled_modes"
         private const val KEY_APP_SORT_ORDER = "app_sort_order"
         private const val KEY_USAGE_STATS_PERMISSION_PROMPTED = "usage_stats_permission_prompted"
@@ -224,5 +294,6 @@ class PreferencesRepositoryImpl @Inject constructor(
         private const val KEY_CURRENCY_RATES_BASE = "currency_rates_base"
         private const val KEY_CURRENCY_RATES_TIMESTAMP = "currency_rates_timestamp"
         private const val KEY_ENABLED_CONVERSION_CATEGORIES = "enabled_conversion_categories"
+        private const val KEY_TIMEZONE_CATEGORY_MIGRATED = "timezone_category_migrated"
     }
 }

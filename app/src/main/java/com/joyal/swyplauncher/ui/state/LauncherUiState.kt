@@ -1,6 +1,7 @@
 package com.joyal.swyplauncher.ui.state
 
 import com.joyal.swyplauncher.domain.model.AppInfo
+import com.joyal.swyplauncher.domain.model.ShortcutSearchItem
 
 data class LauncherUiState(
     val apps: List<AppInfo> = emptyList(),
@@ -15,6 +16,7 @@ data class LauncherUiState(
     val voiceFilteredApps: List<AppInfo> = emptyList(),
     val voiceSmartApps: List<AppInfo> = emptyList(),
     val hiddenApps: List<AppInfo> = emptyList(),
+    val hiddenShortcuts: List<ShortcutSearchItem> = emptyList(),
     val newlyInstalledAppPackage: String? = null, // Package name of app that should show badge
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -30,8 +32,28 @@ data class LauncherUiState(
     val handwritingUnitResult: UnitResultState? = null,
     val keyboardUnitResult: UnitResultState? = null,
     val voiceUnitResult: UnitResultState? = null,
+    // Time-zone conversion results for each mode
+    val handwritingTimeZoneResult: TimeZoneResultState? = null,
+    val keyboardTimeZoneResult: TimeZoneResultState? = null,
+    val voiceTimeZoneResult: TimeZoneResultState? = null,
+    // App shortcut search results for each search-driven mode (only populated while searching)
+    val handwritingShortcutResults: List<ShortcutSearchItem> = emptyList(),
+    val keyboardShortcutResults: List<ShortcutSearchItem> = emptyList(),
+    val voiceShortcutResults: List<ShortcutSearchItem> = emptyList(),
     // Tooltip visibility
     val showHideAppTooltip: Boolean = false
+)
+
+// Time-zone conversion display state. Holds both the render-ready rows and the
+// refs/instant needed to recompute after an edit, country switch or swap.
+data class TimeZoneResultState(
+    val epochMillis: Long,
+    val primaryRef: com.joyal.swyplauncher.util.TimeZoneUtil.Ref,
+    val secondaryRef: com.joyal.swyplauncher.util.TimeZoneUtil.Ref,
+    val formatPref: com.joyal.swyplauncher.util.TimeZoneUtil.FormatPref,
+    val primaryRows: List<com.joyal.swyplauncher.util.TimeZoneUtil.Row>,
+    val secondaryRows: List<com.joyal.swyplauncher.util.TimeZoneUtil.Row>,
+    val error: String? = null
 )
 
 // Unit conversion display state
